@@ -1,6 +1,6 @@
 # ClassProject — Group Formation Web App: Specification
 
-**Version:** 0.2 (updated after John's review) · **Date:** 2026-07-02 · **Owner:** John Yao
+**Version:** 0.3 · **Date:** 2026-07-02 · **Owner:** John Yao
 
 A web app for a class of ~45 undergraduate students to post project ideas, form groups of
 teammates, and submit end-of-project reports with confidential peer reviews for the instructor.
@@ -52,25 +52,30 @@ built for v1 (can be added later if the admin feels clunky).
   verification link (signed token, 3-day expiry) is emailed. The user cannot sign in until
   they click it. A "resend verification email" link exists on the sign-in page.
 - **Sign in / sign out** with email + password. Django's standard session auth.
-- **Profile page** (`/users/<id>/`): displays public relavent fields. Visible to **signed-in
-  users only** — never to the open internet. Hide the personal fields like height and study year. Those are for making data analysis examples later.
+- **Profile page** (`/users/<id>/`): visible to **signed-in users only** — never to the
+  open internet — and shows only the publicly relevant fields (see table below). The
+  personal fields (year of birth, gender, height, study year) are collected for later
+  in-class data-analysis examples, not for display: they appear only to the student
+  themselves (edit page) and to the instructor (admin).
 - **Edit own profile:** users can update every profile field (not email) at any time.
 
 Field details:
 
-| Field | Type / validation |
-|---|---|
-| Email | Unique, valid format; login identifier |
-| Full name | Required, ≤100 chars |
-| Year of birth | Integer, 1950–2015 |
-| Department | Required, ≤100 chars, free text |
-| Major | Required, ≤100 chars, free text |
-| Study year | Choice: 1, 2, 3, 4, 5+ |
-| Gender | Choice: Male / Female / Prefer not to say |
-| Height (cm) | Integer, 100–250 |
-| Languages spoken | Free text, comma-separated (e.g. "Chinese, English") |
-| Interests | Free text, multi-line |
-| Skills | Free text, multi-line |
+| Field | Type / validation | On public profile? |
+|---|---|---|
+| Email | Unique, valid format; login identifier | No — login only |
+| Full name | Required, ≤100 chars | Yes |
+| Year of birth | Integer, 1950–2015 | No — private |
+| Department | Required, ≤100 chars, free text | Yes |
+| Major | Required, ≤100 chars, free text | Yes |
+| Study year | Choice: 1, 2, 3, 4, 5+ | No — private |
+| Gender | Choice: Male / Female / Prefer not to say | No — private |
+| Height (cm) | Integer, 100–250 | No — private |
+| Languages spoken | Free text, comma-separated (e.g. "Chinese, English") | Yes |
+| Interests | Free text, multi-line | Yes |
+| Skills | Free text, multi-line | Yes |
+
+"Private" = visible only to the student themselves and the instructor.
 
 ### 3.2 Projects
 
@@ -85,14 +90,19 @@ Field details:
   - **Fulfilled** — automatic when owner + confirmed members = group size; reverts to
     open if the owner removes a member.
   - **Cancelled** — set by the owner at any time (typically to free themselves to apply
-    to another project, see §3.3). Cancelling releases all members, declines pending
-    applications, and move down the project to the bottom of the list with a cancelled status pill. Owner can un-cancel a project if he is not admitted in any other group.
+    to another project, see §3.3). Cancelling releases all members and declines pending
+    applications. The project is *not* hidden: it stays on the list, sorted to the bottom,
+    with a grayed-out background and a "Cancelled" status pill.
+  - **Un-cancel** — the owner can reactivate their cancelled project (status returns to
+    `open`; former members are **not** automatically restored — they re-apply if still
+    interested) provided the owner is still free: not admitted into any other group, and
+    no pending application of their own (they must withdraw it first).
 - Owner can also **delete** the project outright (confirmation page; removes it and its
   applications/memberships entirely). Cancel keeps the record for history; delete does not.
-- **Project list** (`/`, the home page): open and fulfilled projects, newest first, showing
-  title, owner, keywords, members joined / group size, and status. Simple keyword search
-  box (filters title/keywords/description). Fulfilled projects remain visible but marked;
-  cancelled projects are hidden.
+- **Project list** (`/`, the home page): all projects. Open and fulfilled ones first
+  (newest first), each showing title, owner, keywords, members joined / group size, and a
+  status pill; **cancelled projects sort to the bottom, grayed out, with a "Cancelled"
+  pill**. Simple keyword search box (filters title/keywords/description).
 - **Project detail page:** all fields, owner's contact info, current member list (linking
   to their profiles), and — prominently — the meet-first notice (§3.3) above the Apply button.
 
@@ -126,8 +136,10 @@ Mechanics:
   2. They aren't already a member of any project (one group per student).
   3. They have no other pending application.
   4. The target project is open and isn't their own.
-- No notification emails in v1 — students check the site. (Anymail makes adding
-  "you were confirmed" emails a ~1-hour task later if wanted.)
+- No notification emails in v1 — students check the site for their application status.
+  (This is deferred by choice, not difficulty: the SendGrid email plumbing built in §6 for
+  verification links can send any email, so adding e.g. a "your application was confirmed"
+  notification later is roughly an hour of work.)
 
 ### 3.4 Stats card & bonus score
 
@@ -160,17 +172,20 @@ A card at the top of the project list shows:
 - Available to every student who is the **owner or a confirmed member** of an open or
   fulfilled project (nav link "My report" appears once they're in a group).
 - The report form collects, about the project the student belongs to:
-  1. **My contribution to the project** (text, required)
-  2. **What I did well** (text, required)
-  3. **What can be improved** (text, required)
-  4. For **each teammate** (everyone in the group except the report author, owner
+  1. **Link to the project work** (URL, required) — where the finished work lives.
+     Form hint: *“e.g. a GitHub repository, a project website, or a shared Google
+     Drive / Baidu Pan link.”* Teammates may all paste the same team link.
+  2. **My contribution to the project** (text, required)
+  3. **What I did well** (text, required)
+  4. **What can be improved** (text, required)
+  5. For **each teammate** (everyone in the group except the report author, owner
      included): a **score 0–10** (required) and **comments** (optional).
 - The form displays clearly: *“Teammate reviews are visible only to the instructor —
   your teammates will never see your scores or comments.”*
 - One report per student per project. The student may **edit and resubmit** any time
   (latest version is kept, with a last-modified timestamp) — you decide the real deadline
   outside the app, or we can add a hard cutoff date later.
-- **Visibility:** the self-report sections (1–3) and all peer reviews are visible **only to
+- **Visibility:** the report sections (1–4) and all peer reviews are visible **only to
   the instructor** via the admin site. Students can see/edit only their own submission.
 - Admin includes a **CSV export** of all peer reviews (reviewer, reviewee, project, score,
   comments) for grading in Excel.
@@ -184,6 +199,7 @@ User (custom, email = username)
   email, password, is_active (false until verified), is_staff/superuser (instructor)
   full_name, birth_year, department, major, study_year, gender, height_cm,
   languages, interests, skills
+  # birth_year, study_year, gender, height_cm are private: self + instructor only
 
 Project
   owner → User            # a user may own at most one open/fulfilled project
@@ -200,7 +216,7 @@ Membership
   unique(member) — one group per student (owner's "membership" is implied by ownership)
 
 Report
-  author → User, project → Project, contribution, did_well, to_improve,
+  author → User, project → Project, work_url, contribution, did_well, to_improve,
   created_at, updated_at ; unique(author, project)
 
 PeerReview
@@ -218,7 +234,7 @@ stay free text for v1; structured tags are unnecessary at 45 users.
 |---|---|---|
 | `/accounts/register/`, `/login/`, `/logout/`, `/verify/<token>/` | Auth flows | Anonymous |
 | `/` | Project list + stats card + search | Signed-in |
-| `/projects/new/`, `/projects/<id>/`, `/projects/<id>/edit/`, `/projects/<id>/cancel/`, `/projects/<id>/delete/` | Project CRUD + cancel | Signed-in; edit/cancel/delete owner-only |
+| `/projects/new/`, `/projects/<id>/`, `/projects/<id>/edit/`, `/projects/<id>/cancel/`, `/projects/<id>/uncancel/`, `/projects/<id>/delete/` | Project CRUD + cancel/un-cancel | Signed-in; edit/cancel/un-cancel/delete owner-only |
 | `/projects/<id>/apply/` | Apply form (with "discussed with owner" checkbox) | Signed-in, eligible |
 | `/projects/<id>/applications/<id>/confirm|decline/`, `/projects/<id>/members/<id>/remove/` | Owner actions (POST) | Owner |
 | `/users/<id>/` | Public profile | Signed-in |
@@ -279,8 +295,10 @@ Still open:
 2. Instructor tools = **Django admin + CSV export**, no custom dashboard in v1.
 3. **Cancel semantics:** cancelling releases all members and declines pending applications
    — even if the project was already fulfilled (the formed team dissolves and those
-   students are free again). Cancelled projects are hidden from the list, don't count
-   toward the stats-card N, and cannot be un-cancelled in v1.
+   students are free again). Cancelled projects stay visible at the bottom of the list
+   (grayed, "Cancelled" pill) but don't count toward the stats-card N. Un-cancel restores
+   the project to open **without** its former members, and is allowed only while the owner
+   is not in another group and has no pending application.
 4. **Bonus curve calibration:** S-curve midpoint at 12 projects, sized for 45 students in
    groups of ~3–4. All four constants are settings, so tuning later needs no code change.
 
