@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.title }} · ClassProject{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-9">
+    <div class="card shadow-sm{% if project.is_cancelled %} bg-body-secondary{% endif %}">
+      <div class="card-body p-4">
+        <div class="d-flex justify-content-between align-items-start gap-2">
+          <div>
+            <h1 class="h4 mb-1">{{ project.title }}</h1>
+            <div class="small text-muted">
+              by <a href="{% url 'profile-detail' project.owner.pk %}">{{ project.owner.full_name }}</a>
+              · posted {{ project.created_at|date:"M j, Y" }}
+              · {{ project.members_joined }}/{{ project.group_size }} members
+            </div>
+          </div>
+          {% include "projects/_status_badge.html" %}
+        </div>
+
+        {% if user == project.owner %}
+          <div class="d-flex flex-wrap gap-2 mt-3">
+            <a class="btn btn-sm btn-outline-primary" href="{% url 'project-edit' project.pk %}">Edit</a>
+            {% if project.is_cancelled %}
+              <form method="post" action="{% url 'project-uncancel' project.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-outline-success">Reactivate</button>
+              </form>
+            {% else %}
+              <form method="post" action="{% url 'project-cancel' project.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-outline-secondary">Cancel project</button>
+              </form>
+            {% endif %}
+            <a class="btn btn-sm btn-outline-danger" href="{% url 'project-delete' project.pk %}">Delete</a>
+          </div>
+        {% endif %}
+
+        <hr>
+
+        <p style="white-space: pre-line;">{{ project.description }}</p>
+
+        {% if project.keyword_list %}
+          <div class="mb-3">
+            {% for kw in project.keyword_list %}
+              <span class="badge text-bg-light border me-1">{{ kw }}</span>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        <dl class="row mb-0">
+          <dt class="col-sm-4">Group size</dt>
+          <dd class="col-sm-8">{{ project.group_size }} (including the owner)</dd>
+
+          <dt class="col-sm-4">Members</dt>
+          <dd class="col-sm-8">{{ project.owner.full_name }} (owner)<span class="text-muted"> — member list arrives in Milestone 3</span></dd>
+
+          <dt class="col-sm-4">Talents needed</dt>
+          <dd class="col-sm-8">{{ project.talents_needed|default:"—"|linebreaksbr }}</dd>
+
+          <dt class="col-sm-4">Contact the owner</dt>
+          <dd class="col-sm-8">{{ project.contact_info }}</dd>
+        </dl>
+
+        {% if user != project.owner and not project.is_cancelled %}
+          <div class="alert alert-info small mt-4 mb-0">
+            <strong>Discuss with the owner (contact above) before applying.</strong>
+            Your application should confirm what you've already agreed.
+            <span class="text-muted d-block mt-1">Applications open in Milestone 3.</span>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

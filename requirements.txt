@@ -1,0 +1,17 @@
+# Web framework — 5.2 is the LTS line (supported into 2028)
+Django>=5.2,<6.0
+
+# Reads settings from environment variables / .env file (12-factor config)
+django-environ>=0.11
+
+# Serves static files (CSS/JS) directly from the app in production
+whitenoise>=6.7
+
+# PostgreSQL driver — used on Azure; local dev uses SQLite
+psycopg[binary]>=3.2
+
+# SendGrid email integration (Milestone 5)
+django-anymail>=11.0
+
+# Production WSGI server on Azure App Service (not used on Windows dev)
+gunicorn>=22.0

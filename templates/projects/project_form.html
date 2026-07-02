@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}{% if is_new %}Post a project{% else %}Edit project{% endif %} · ClassProject{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-9 col-lg-7">
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+        <h1 class="h4 mb-1">{% if is_new %}Post a project{% else %}Edit project{% endif %}</h1>
+        {% if is_new %}
+          <p class="text-muted small mb-4">
+            Describe your idea and what teammates you're looking for. Classmates are
+            encouraged to contact you and discuss before they apply.
+          </p>
+        {% endif %}
+        <form method="post" novalidate>
+          {% csrf_token %}
+          {% include "partials/form_fields.html" %}
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+              {% if is_new %}Post project{% else %}Save changes{% endif %}
+            </button>
+            <a class="btn btn-outline-secondary"
+               href="{% if is_new %}{% url 'home' %}{% else %}{% url 'project-detail' project.pk %}{% endif %}">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

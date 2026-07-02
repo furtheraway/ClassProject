@@ -9,15 +9,22 @@ or changing a feature, and keep SPEC.md updated when requirements change.**
 
 ## Status
 
-Spec agreed (v0.2); implementation not started. Build order = SPEC.md §10 milestones.
+Milestones 1–2 complete (accounts/profiles; project board with CRUD,
+cancel/reactivate, search, stats card + S-curve bonus score) — both verified
+end-to-end 2026-07-02. Next: Milestone 3 (applications, memberships, eligibility
+rules, auto-fulfill; also extend cancel/un-cancel with member release + the
+membership/pending-application guards marked by "Milestone 3" comments in
+projects/views.py). Build order = SPEC.md §10.
 
 ## Commands
 
-To be filled in as the project scaffolds. Expected:
+Python 3.13 venv at `.venv` (Python 3.14 is also on the machine — always use the venv):
 
-- `python manage.py runserver` — run locally (SQLite)
-- `python manage.py makemigrations` / `migrate`
-- `python manage.py test`
+- `.\.venv\Scripts\python.exe manage.py runserver` — run locally (SQLite), http://127.0.0.1:8000
+- `.\.venv\Scripts\python.exe manage.py makemigrations` / `migrate`
+- `.\.venv\Scripts\python.exe manage.py test`
+- Local instructor login for `/admin`: `instructor@example.com` (password known to John;
+  local SQLite only, not committed)
 
 ## Conventions
 

@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Projects · ClassProject{% endblock %}
+
+{% block content %}
+<div class="alert alert-info small">
+  Found a project you like? <strong>Talk to its owner first</strong> — apply once
+  you've agreed to team up.
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <div class="row text-center">
+      <div class="col-6 border-end">
+        <div class="fs-2 fw-semibold">{{ project_count }}</div>
+        <div class="text-muted small">Projects submitted</div>
+      </div>
+      <div class="col-6">
+        <div class="fs-2 fw-semibold">+{{ bonus_score }}</div>
+        <div class="text-muted small">Bonus points for posting &amp; fulfilling a project now</div>
+      </div>
+    </div>
+    <p class="text-muted small text-center mt-3 mb-0">
+      The bonus falls as more projects are posted — early birds earn more
+      (max +20, min +3).
+    </p>
+  </div>
+</div>
+
+<div class="d-flex gap-2 mb-3">
+  <form class="flex-grow-1" method="get" role="search">
+    <input type="search" class="form-control" name="q" value="{{ query }}"
+           placeholder="Search title, keywords, description…" aria-label="Search projects">
+  </form>
+  {% if user_active_project %}
+    <a class="btn btn-outline-primary text-nowrap" href="{% url 'project-detail' user_active_project.pk %}">My project</a>
+  {% else %}
+    <a class="btn btn-primary text-nowrap" href="{% url 'project-new' %}">Post a project</a>
+  {% endif %}
+</div>
+
+{% for project in projects %}
+  <div class="card shadow-sm mb-3{% if project.is_cancelled %} bg-body-secondary opacity-50{% endif %}">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-start gap-2">
+        <div>
+          <h2 class="h5 mb-1">
+            <a class="text-decoration-none" href="{% url 'project-detail' project.pk %}">{{ project.title }}</a>
+          </h2>
+          <div class="small text-muted">
+            by <a href="{% url 'profile-detail' project.owner.pk %}">{{ project.owner.full_name }}</a>
+            · {{ project.created_at|date:"M j" }}
+            · {{ project.members_joined }}/{{ project.group_size }} members
+          </div>
+        </div>
+        {% include "projects/_status_badge.html" %}
+      </div>
+      {% if project.keyword_list %}
+        <div class="mt-2">
+          {% for kw in project.keyword_list %}
+            <span class="badge text-bg-light border me-1">{{ kw }}</span>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+{% empty %}
+  <div class="card">
+    <div class="card-body text-center text-muted p-5">
+      {% if query %}
+        No projects match “{{ query }}”.
+      {% else %}
+        No projects yet — post the first one and lock in the top bonus score!
+      {% endif %}
+    </div>
+  </div>
+{% endfor %}
+{% endblock %}

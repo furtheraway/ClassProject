@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}{{ profile_user.full_name }} · ClassProject{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <h1 class="h4 mb-1">{{ profile_user.full_name }}</h1>
+            <div class="text-muted">
+              {{ profile_user.department|default:"—" }}{% if profile_user.major %} · {{ profile_user.major }}{% endif %}
+            </div>
+          </div>
+          {% if profile_user == user %}
+            <a class="btn btn-outline-primary btn-sm" href="{% url 'profile-edit' %}">Edit profile</a>
+          {% endif %}
+        </div>
+        <hr>
+        <dl class="row mb-0">
+          <dt class="col-sm-4">Languages spoken</dt>
+          <dd class="col-sm-8">{{ profile_user.languages|default:"—" }}</dd>
+
+          <dt class="col-sm-4">Interests</dt>
+          <dd class="col-sm-8">{{ profile_user.interests|default:"—"|linebreaksbr }}</dd>
+
+          <dt class="col-sm-4">Skills</dt>
+          <dd class="col-sm-8">{{ profile_user.skills|default:"—"|linebreaksbr }}</dd>
+        </dl>
+        {% if profile_user == user %}
+          <div class="alert alert-secondary small mt-4 mb-0">
+            Your birth year, study year, gender and height are <strong>private</strong> — they are not
+            shown on this page. You can view or change them on the
+            <a href="{% url 'profile-edit' %}" class="alert-link">edit page</a>; only the instructor can see them.
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

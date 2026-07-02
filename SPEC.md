@@ -11,10 +11,10 @@ teammates, and submit end-of-project reports with confidential peer reviews for 
 
 | Layer | Choice | Why |
 |---|---|---|
-| Language / framework | Python 3.12 + Django 5.x | Batteries included: auth, forms, ORM, admin site — minimal code for an app this size |
+| Language / framework | Python 3.13 + Django 5.2 LTS | Batteries included: auth, forms, ORM, admin site — minimal code for an app this size. LTS is supported into 2028; 3.13 is the newest Python on Azure App Service |
 | Database (production) | Azure Database for PostgreSQL — Flexible Server (Burstable B1ms) | Django's first-class database; no driver friction on Azure |
 | Database (local dev) | SQLite (Django default) | Zero setup on your PC; switching to PostgreSQL in production is a one-line settings/env change |
-| Hosting | Azure App Service (Linux, Python 3.12), Basic B1 plan | Managed, HTTPS out of the box, native Python support |
+| Hosting | Azure App Service (Linux, Python 3.13), Basic B1 plan | Managed, HTTPS out of the box, native Python support |
 | Web server | Gunicorn (App Service's default for Django) | Standard |
 | Static files | WhiteNoise | Serves CSS/JS directly from the app — no separate storage account needed at this scale |
 | Email | SendGrid via **django-anymail** | Same SendGrid account/API key you use from ASP.NET Core; Anymail plugs it into Django's standard `send_mail` |
@@ -256,7 +256,7 @@ stay free text for v1; structured tags are unnecessary at 45 users.
 ## 7. Azure architecture & deployment
 
 ```
-GitHub repo ──GitHub Actions──▶ App Service (Linux, Python 3.12, B1, gunicorn)
+GitHub repo ──GitHub Actions──▶ App Service (Linux, Python 3.13, B1, gunicorn)
                                    │  app settings: SECRET_KEY, DATABASE_URL,
                                    │  SENDGRID_API_KEY, ALLOWED_HOSTS
                                    ▼

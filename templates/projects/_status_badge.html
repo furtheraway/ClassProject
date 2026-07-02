@@ -1,0 +1,7 @@
+{% if project.status == "open" %}
+  <span class="badge text-bg-success">Open</span>
+{% elif project.status == "fulfilled" %}
+  <span class="badge text-bg-primary">Fulfilled</span>
+{% else %}
+  <span class="badge text-bg-secondary">Cancelled</span>
+{% endif %}
