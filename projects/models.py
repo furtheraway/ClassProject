@@ -52,8 +52,8 @@ class Project(models.Model):
 
     @property
     def members_joined(self):
-        """The owner counts toward group size; confirmed members add to this in Milestone 3."""
-        return 1
+        """Owner counts toward group size (SPEC §3.2)."""
+        return 1 + self.memberships.count()
 
     @property
     def is_cancelled(self):
@@ -62,3 +62,55 @@ class Project(models.Model):
     @property
     def is_open(self):
         return self.status == self.Status.OPEN
+
+
+class Application(models.Model):
+    """A request to join a project — the finalization of an offline agreement (SPEC §3.3)."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        CONFIRMED = "confirmed", "Confirmed"
+        DECLINED = "declined", "Declined"
+        WITHDRAWN = "withdrawn", "Withdrawn"
+
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="applications")
+    applicant = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="applications"
+    )
+    message = models.TextField("message to the owner", blank=True)
+    discussed_with_owner = models.BooleanField(
+        "I have discussed this project with the owner", default=False
+    )
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    created_at = models.DateTimeField(auto_now_add=True)
+    decided_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["created_at"]
+        constraints = [
+            # SPEC §3.3: at most one pending application per student, app-wide.
+            models.UniqueConstraint(
+                fields=["applicant"],
+                condition=models.Q(status="pending"),
+                name="one_pending_application_per_student",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.applicant} → {self.project} ({self.status})"
+
+
+class Membership(models.Model):
+    """A confirmed team member. One group per student (SPEC §3.3) — hence one-to-one."""
+
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="memberships")
+    member = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="membership"
+    )
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["joined_at"]
+
+    def __str__(self):
+        return f"{self.member} in {self.project}"

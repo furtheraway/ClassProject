@@ -53,9 +53,6 @@
           <dt class="col-sm-4">Group size</dt>
           <dd class="col-sm-8">{{ project.group_size }} (including the owner)</dd>
 
-          <dt class="col-sm-4">Members</dt>
-          <dd class="col-sm-8">{{ project.owner.full_name }} (owner)<span class="text-muted"> — member list arrives in Milestone 3</span></dd>
-
           <dt class="col-sm-4">Talents needed</dt>
           <dd class="col-sm-8">{{ project.talents_needed|default:"—"|linebreaksbr }}</dd>
 
@@ -63,12 +60,78 @@
           <dd class="col-sm-8">{{ project.contact_info }}</dd>
         </dl>
 
-        {% if user != project.owner and not project.is_cancelled %}
-          <div class="alert alert-info small mt-4 mb-0">
-            <strong>Discuss with the owner (contact above) before applying.</strong>
-            Your application should confirm what you've already agreed.
-            <span class="text-muted d-block mt-1">Applications open in Milestone 3.</span>
-          </div>
+        <h2 class="h6 mt-4 mb-2">Team ({{ project.members_joined }}/{{ project.group_size }})</h2>
+        <ul class="list-group list-group-flush mb-2">
+          <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+            <a href="{% url 'profile-detail' project.owner.pk %}">{{ project.owner.full_name }}</a>
+            <span class="text-muted small">owner</span>
+          </li>
+          {% for membership in memberships %}
+            <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+              <a href="{% url 'profile-detail' membership.member.pk %}">{{ membership.member.full_name }}</a>
+              {% if user == project.owner %}
+                <form method="post" action="{% url 'member-remove' project.pk membership.member.pk %}">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                </form>
+              {% else %}
+                <span class="text-muted small">joined {{ membership.joined_at|date:"M j" }}</span>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+
+        {% if user == project.owner %}
+          {% if not project.is_cancelled %}
+            <h2 class="h6 mt-4 mb-2">Pending applications</h2>
+            {% for application in pending_applications %}
+              <div class="border rounded p-3 mb-2">
+                <div class="d-flex justify-content-between align-items-center">
+                  <a href="{% url 'profile-detail' application.applicant.pk %}">{{ application.applicant.full_name }}</a>
+                  <span class="text-muted small">{{ application.created_at|date:"M j, H:i" }}</span>
+                </div>
+                {% if application.message %}
+                  <p class="small mt-2 mb-2">{{ application.message }}</p>
+                {% endif %}
+                <div class="d-flex gap-2 mt-2">
+                  <form method="post" action="{% url 'application-confirm' project.pk application.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-success">Confirm member</button>
+                  </form>
+                  <form method="post" action="{% url 'application-decline' project.pk application.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-secondary">Decline</button>
+                  </form>
+                </div>
+              </div>
+            {% empty %}
+              <p class="text-muted small">No pending applications yet.</p>
+            {% endfor %}
+          {% endif %}
+        {% else %}
+          {% if is_member %}
+            <div class="alert alert-success small mt-4 mb-0">
+              You're a member of this group.
+            </div>
+          {% elif user_application %}
+            <div class="alert alert-warning small mt-4 mb-0 d-flex justify-content-between align-items-center gap-2">
+              <span>Your application is pending — the owner will confirm or decline it.</span>
+              <form method="post" action="{% url 'application-withdraw' project.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-outline-secondary text-nowrap">Withdraw</button>
+              </form>
+            </div>
+          {% elif project.is_open %}
+            {% if apply_block_reason %}
+              <div class="alert alert-secondary small mt-4 mb-0">{{ apply_block_reason }}</div>
+            {% else %}
+              <div class="alert alert-info small mt-4">
+                <strong>Discuss with the owner (contact above) before applying.</strong>
+                Your application should confirm what you've already agreed.
+              </div>
+              <a class="btn btn-primary" href="{% url 'project-apply' project.pk %}">Apply to join</a>
+            {% endif %}
+          {% endif %}
         {% endif %}
       </div>
     </div>

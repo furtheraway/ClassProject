@@ -9,12 +9,12 @@ or changing a feature, and keep SPEC.md updated when requirements change.**
 
 ## Status
 
-Milestones 1–2 complete (accounts/profiles; project board with CRUD,
-cancel/reactivate, search, stats card + S-curve bonus score) — both verified
-end-to-end 2026-07-02. Next: Milestone 3 (applications, memberships, eligibility
-rules, auto-fulfill; also extend cancel/un-cancel with member release + the
-membership/pending-application guards marked by "Milestone 3" comments in
-projects/views.py). Build order = SPEC.md §10.
+Milestones 1–3 complete (accounts/profiles; project board with CRUD,
+cancel/reactivate, search, stats card + S-curve bonus score; applications,
+memberships, eligibility guards, auto-fulfill/reopen, cancel releases team) —
+all verified end-to-end 2026-07-02. Next: Milestone 4 (end-of-project reports
+with required work URL + instructor-only peer reviews + CSV export via admin).
+Build order = SPEC.md §10.
 
 ## Commands
 

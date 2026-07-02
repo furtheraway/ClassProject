@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import Project
+from .models import Application, Membership, Project
 from .services import current_bonus_score
 
 User = get_user_model()
@@ -172,3 +172,276 @@ class HomeListTests(TestCase):
         response = self.client.get(reverse("project-detail", args=[project.pk]))
         self.assertContains(response, "wechat: alice123")
         self.assertContains(response, "Discuss with the owner")
+
+
+APPLICATION_DATA = {"message": "We talked after class on Tuesday.", "discussed_with_owner": "on"}
+
+
+def apply(client, project, data=APPLICATION_DATA):
+    return client.post(reverse("project-apply", args=[project.pk]), data)
+
+
+class ApplyTests(TestCase):
+    """SPEC §3.3 — applying to a project."""
+
+    def setUp(self):
+        self.owner = make_user("owner@example.com", "Olive Owner")
+        self.dave = make_user("dave@example.com", "Dave Deng")
+        self.project = Project.objects.create(owner=self.owner, **PROJECT_DATA)
+        self.client.force_login(self.dave)
+
+    def test_apply_happy_path(self):
+        response = apply(self.client, self.project)
+        self.assertRedirects(response, reverse("project-detail", args=[self.project.pk]))
+        app = Application.objects.get()
+        self.assertEqual(app.applicant, self.dave)
+        self.assertEqual(app.status, Application.Status.PENDING)
+
+    def test_apply_requires_discussed_checkbox(self):
+        response = apply(self.client, self.project, {"message": "hi"})
+        self.assertEqual(response.status_code, 200)  # re-rendered with errors
+        self.assertFalse(Application.objects.exists())
+
+    def test_cannot_apply_to_own_project(self):
+        self.client.force_login(self.owner)
+        response = apply(self.client, self.project)
+        self.assertRedirects(response, reverse("project-detail", args=[self.project.pk]))
+        self.assertFalse(Application.objects.exists())
+
+    def test_active_project_owner_must_cancel_first(self):
+        Project.objects.create(owner=self.dave, **dict(PROJECT_DATA, title="Dave's own"))
+        apply(self.client, self.project)
+        self.assertFalse(Application.objects.exists())
+
+    def test_cancelled_owner_can_apply(self):
+        Project.objects.create(
+            owner=self.dave,
+            status=Project.Status.CANCELLED,
+            **dict(PROJECT_DATA, title="Dave's old"),
+        )
+        apply(self.client, self.project)
+        self.assertTrue(Application.objects.exists())
+
+    def test_member_cannot_apply(self):
+        other = Project.objects.create(
+            owner=make_user("erin@example.com"), **dict(PROJECT_DATA, title="Other")
+        )
+        Membership.objects.create(project=other, member=self.dave)
+        apply(self.client, self.project)
+        self.assertFalse(Application.objects.exists())
+
+    def test_only_one_pending_application_app_wide(self):
+        other = Project.objects.create(
+            owner=make_user("erin@example.com"), **dict(PROJECT_DATA, title="Other")
+        )
+        apply(self.client, self.project)
+        apply(self.client, other)
+        self.assertEqual(Application.objects.count(), 1)
+
+    def test_cannot_apply_to_fulfilled_project(self):
+        self.project.status = Project.Status.FULFILLED
+        self.project.save()
+        apply(self.client, self.project)
+        self.assertFalse(Application.objects.exists())
+
+    def test_withdraw_then_reapply(self):
+        apply(self.client, self.project)
+        self.client.post(reverse("application-withdraw", args=[self.project.pk]))
+        self.assertEqual(
+            Application.objects.get().status, Application.Status.WITHDRAWN
+        )
+        apply(self.client, self.project)
+        self.assertEqual(
+            Application.objects.filter(status=Application.Status.PENDING).count(), 1
+        )
+
+
+class ConfirmDeclineTests(TestCase):
+    """SPEC §3.3 — owner decisions, auto-fulfill, auto-decline."""
+
+    def setUp(self):
+        self.owner = make_user("owner@example.com", "Olive Owner")
+        self.dave = make_user("dave@example.com", "Dave Deng")
+        self.erin = make_user("erin@example.com", "Erin Xu")
+        self.frank = make_user("frank@example.com", "Frank Ma")
+        self.project = Project.objects.create(owner=self.owner, **PROJECT_DATA)  # size 3
+
+    def _pending_app(self, user):
+        return Application.objects.create(
+            project=self.project, applicant=user, discussed_with_owner=True
+        )
+
+    def _confirm(self, app):
+        return self.client.post(
+            reverse("application-confirm", args=[self.project.pk, app.pk])
+        )
+
+    def test_confirm_creates_membership(self):
+        app = self._pending_app(self.dave)
+        self.client.force_login(self.owner)
+        self._confirm(app)
+        app.refresh_from_db()
+        self.assertEqual(app.status, Application.Status.CONFIRMED)
+        self.assertTrue(Membership.objects.filter(member=self.dave, project=self.project).exists())
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.status, Project.Status.OPEN)  # 2/3, not full yet
+
+    def test_autofulfill_declines_remaining_pending(self):
+        Membership.objects.create(project=self.project, member=self.frank)  # 2/3
+        app_dave = self._pending_app(self.dave)
+        app_erin = self._pending_app(self.erin)
+        self.client.force_login(self.owner)
+        self._confirm(app_dave)  # 3/3 → fulfilled
+        self.project.refresh_from_db()
+        app_erin.refresh_from_db()
+        self.assertEqual(self.project.status, Project.Status.FULFILLED)
+        self.assertEqual(app_erin.status, Application.Status.DECLINED)
+
+    def test_stale_confirm_blocked_when_applicant_joined_elsewhere(self):
+        app = self._pending_app(self.dave)
+        other = Project.objects.create(owner=self.erin, **dict(PROJECT_DATA, title="Other"))
+        Membership.objects.create(project=other, member=self.dave)
+        self.client.force_login(self.owner)
+        self._confirm(app)
+        app.refresh_from_db()
+        self.assertEqual(app.status, Application.Status.PENDING)
+        self.assertFalse(Membership.objects.filter(project=self.project).exists())
+
+    def test_decline(self):
+        app = self._pending_app(self.dave)
+        self.client.force_login(self.owner)
+        self.client.post(reverse("application-decline", args=[self.project.pk, app.pk]))
+        app.refresh_from_db()
+        self.assertEqual(app.status, Application.Status.DECLINED)
+        self.assertIsNotNone(app.decided_at)
+
+    def test_non_owner_cannot_confirm_or_decline(self):
+        app = self._pending_app(self.dave)
+        self.client.force_login(self.erin)
+        for name in ("application-confirm", "application-decline"):
+            response = self.client.post(reverse(name, args=[self.project.pk, app.pk]))
+            self.assertEqual(response.status_code, 403, name)
+
+    def test_member_cannot_create_project(self):
+        Membership.objects.create(project=self.project, member=self.dave)
+        self.client.force_login(self.dave)
+        response = self.client.post(
+            reverse("project-new"), dict(PROJECT_DATA, title="Sneaky side project")
+        )
+        self.assertRedirects(response, reverse("home"))
+        self.assertEqual(Project.objects.count(), 1)
+
+
+class MemberRemoveTests(TestCase):
+    def setUp(self):
+        self.owner = make_user("owner@example.com", "Olive Owner")
+        self.dave = make_user("dave@example.com", "Dave Deng")
+        self.project = Project.objects.create(
+            owner=self.owner, **dict(PROJECT_DATA, group_size=2)
+        )
+        Membership.objects.create(project=self.project, member=self.dave)
+        self.project.status = Project.Status.FULFILLED
+        self.project.save()
+        self.client.force_login(self.owner)
+
+    def test_remove_member_reopens_fulfilled_project(self):
+        self.client.post(
+            reverse("member-remove", args=[self.project.pk, self.dave.pk])
+        )
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.status, Project.Status.OPEN)
+        self.assertFalse(Membership.objects.exists())
+
+    def test_non_owner_cannot_remove(self):
+        self.client.force_login(self.dave)
+        response = self.client.post(
+            reverse("member-remove", args=[self.project.pk, self.dave.pk])
+        )
+        self.assertEqual(response.status_code, 403)
+
+
+class CancelReleasesTeamTests(TestCase):
+    """SPEC §3.2 — cancel releases members + declines pending; un-cancel guards."""
+
+    def setUp(self):
+        self.owner = make_user("owner@example.com", "Olive Owner")
+        self.dave = make_user("dave@example.com", "Dave Deng")
+        self.erin = make_user("erin@example.com", "Erin Xu")
+        self.project = Project.objects.create(owner=self.owner, **PROJECT_DATA)
+        self.client.force_login(self.owner)
+
+    def test_cancel_releases_members_and_declines_pending(self):
+        Membership.objects.create(project=self.project, member=self.dave)
+        app = Application.objects.create(
+            project=self.project, applicant=self.erin, discussed_with_owner=True
+        )
+        self.client.post(reverse("project-cancel", args=[self.project.pk]))
+        self.project.refresh_from_db()
+        app.refresh_from_db()
+        self.assertEqual(self.project.status, Project.Status.CANCELLED)
+        self.assertFalse(Membership.objects.exists())
+        self.assertEqual(app.status, Application.Status.DECLINED)
+
+    def test_uncancel_blocked_when_owner_joined_another_group(self):
+        self.client.post(reverse("project-cancel", args=[self.project.pk]))
+        other = Project.objects.create(owner=self.erin, **dict(PROJECT_DATA, title="Other"))
+        Membership.objects.create(project=other, member=self.owner)
+        self.client.post(reverse("project-uncancel", args=[self.project.pk]))
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.status, Project.Status.CANCELLED)
+
+    def test_uncancel_blocked_by_own_pending_application(self):
+        self.client.post(reverse("project-cancel", args=[self.project.pk]))
+        other = Project.objects.create(owner=self.erin, **dict(PROJECT_DATA, title="Other"))
+        Application.objects.create(
+            project=other, applicant=self.owner, discussed_with_owner=True
+        )
+        self.client.post(reverse("project-uncancel", args=[self.project.pk]))
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.status, Project.Status.CANCELLED)
+
+    def test_uncancel_does_not_restore_members(self):
+        Membership.objects.create(project=self.project, member=self.dave)
+        self.client.post(reverse("project-cancel", args=[self.project.pk]))
+        self.client.post(reverse("project-uncancel", args=[self.project.pk]))
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.status, Project.Status.OPEN)
+        self.assertFalse(Membership.objects.exists())
+
+
+class GroupSizeEditTests(TestCase):
+    """SPEC §3.2/§3.3 — group-size edits interact with fulfillment."""
+
+    def setUp(self):
+        self.owner = make_user("owner@example.com", "Olive Owner")
+        self.dave = make_user("dave@example.com", "Dave Deng")
+        self.project = Project.objects.create(owner=self.owner, **PROJECT_DATA)  # size 3
+        Membership.objects.create(project=self.project, member=self.dave)  # team = 2
+        self.client.force_login(self.owner)
+
+    def _edit(self, group_size):
+        return self.client.post(
+            reverse("project-edit", args=[self.project.pk]),
+            dict(PROJECT_DATA, group_size=group_size),
+        )
+
+    def test_cannot_shrink_below_current_team(self):
+        # Team is 2 (owner + dave); group_size 2 is allowed, but a value
+        # below members_joined is rejected by the form. Add a member to test.
+        erin = make_user("erin@example.com", "Erin Xu")
+        Membership.objects.create(project=self.project, member=erin)  # team = 3
+        response = self._edit(2)
+        self.assertEqual(response.status_code, 200)  # form error, not saved
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.group_size, 3)
+
+    def test_shrink_to_team_size_autofulfills(self):
+        self._edit(2)
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.status, Project.Status.FULFILLED)
+
+    def test_enlarging_fulfilled_project_reopens(self):
+        self._edit(2)  # fulfilled at 2/2
+        self._edit(4)
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.status, Project.Status.OPEN)
