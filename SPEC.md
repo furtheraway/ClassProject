@@ -1,6 +1,6 @@
 # ClassProject — Group Formation Web App: Specification
 
-**Version:** 0.1 (draft for review) · **Date:** 2026-07-02 · **Owner:** John Yao
+**Version:** 0.2 (updated after John's review) · **Date:** 2026-07-02 · **Owner:** John Yao
 
 A web app for a class of ~45 undergraduate students to post project ideas, form groups of
 teammates, and submit end-of-project reports with confidential peer reviews for the instructor.
@@ -52,8 +52,8 @@ built for v1 (can be added later if the admin feels clunky).
   verification link (signed token, 3-day expiry) is emailed. The user cannot sign in until
   they click it. A "resend verification email" link exists on the sign-in page.
 - **Sign in / sign out** with email + password. Django's standard session auth.
-- **Profile page** (`/users/<id>/`): displays all the fields above. Visible to **signed-in
-  users only** — never to the open internet.
+- **Profile page** (`/users/<id>/`): displays public relavent fields. Visible to **signed-in
+  users only** — never to the open internet. Hide the personal fields like height and study year. Those are for making data analysis examples later.
 - **Edit own profile:** users can update every profile field (not email) at any time.
 
 Field details:
@@ -66,7 +66,7 @@ Field details:
 | Department | Required, ≤100 chars, free text |
 | Major | Required, ≤100 chars, free text |
 | Study year | Choice: 1, 2, 3, 4, 5+ |
-| Gender | Choice: Male / Female / Other / Prefer not to say |
+| Gender | Choice: Male / Female / Prefer not to say |
 | Height (cm) | Integer, 100–250 |
 | Languages spoken | Free text, comma-separated (e.g. "Chinese, English") |
 | Interests | Free text, multi-line |
@@ -74,56 +74,91 @@ Field details:
 
 ### 3.2 Projects
 
-- Any signed-in student can **create a project** with: title (≤120 chars), description,
-  keywords (comma-separated), **members needed (integer 2–5)**, talents needed, and the
-  owner's contact info (free text — email / phone / WeChat, etc.).
-- Owner can **edit** any field and **delete** the project. Deleting removes its
-  applications and memberships (with an "are you sure" confirmation page).
-- Project status: **Open** → **Fulfilled** (automatic when accepted members = members
-  needed; reverts to Open if the owner removes a member).
-- **Project list** (`/`, the home page): all projects, newest first, showing title, owner,
-  keywords, members accepted / needed, and status. Simple keyword search box (filters
-  title/keywords/description). Fulfilled projects remain visible but marked.
+- Any signed-in student can **create a project** with: title (≤220 chars), description,
+  keywords (comma-separated), **group size (integer 2–5 — total members *including* the
+  owner)**, talents needed, and the owner's contact info (free text — email / phone /
+  WeChat, etc.). A student who already owns an open/fulfilled project, or is a member of
+  someone else's project, cannot create one.
+- Owner can **edit** any field, with one guard: group size cannot be set below
+  1 + currently confirmed members.
+- Project **status**: `open` ⇄ `fulfilled`, and either can become `cancelled`.
+  - **Fulfilled** — automatic when owner + confirmed members = group size; reverts to
+    open if the owner removes a member.
+  - **Cancelled** — set by the owner at any time (typically to free themselves to apply
+    to another project, see §3.3). Cancelling releases all members, declines pending
+    applications, and move down the project to the bottom of the list with a cancelled status pill. Owner can un-cancel a project if he is not admitted in any other group.
+- Owner can also **delete** the project outright (confirmation page; removes it and its
+  applications/memberships entirely). Cancel keeps the record for history; delete does not.
+- **Project list** (`/`, the home page): open and fulfilled projects, newest first, showing
+  title, owner, keywords, members joined / group size, and status. Simple keyword search
+  box (filters title/keywords/description). Fulfilled projects remain visible but marked;
+  cancelled projects are hidden.
 - **Project detail page:** all fields, owner's contact info, current member list (linking
-  to their profiles), and — prominently — this notice above the Apply button:
-  > *“You are encouraged to discuss with the project owner (contact above) before applying.”*
+  to their profiles), and — prominently — the meet-first notice (§3.3) above the Apply button.
 
 ### 3.3 Applications & membership
 
-- A student may **apply** to an Open project with an optional short message. One pending
-  application per (student, project); they may withdraw and re-apply.
-- The **owner** sees a list of applicants (linked to their profiles) on their project page
-  and can **Accept** or **Decline** each. Accepting creates a membership; when the count
-  reaches *members needed*, the project flips to **Fulfilled** and remaining pending
-  applications are automatically declined.
-- The owner can **remove** an accepted member at any time; the project reopens if it was full.
-- **Eligibility rules** (enforced on apply and on accept):
-  1. A project **owner cannot apply** to any project (requirement: an owner cannot be a
-     member of another project). Conversely, a student who is already an accepted member
-     of a project cannot create their own project.
-  2. A student can be an **accepted member of at most one project** at a time (this is
-     class group formation — one group per student). They may hold multiple *pending*
-     applications, but the first acceptance auto-withdraws the rest.
-  3. Owners can't apply to their own project.
+**Tone: the app finalizes teams, it does not match strangers.** Students are expected to
+meet and agree offline *first* — applying is the confirmation step. The UI wording
+reinforces this everywhere:
+
+- Banner on the project list: *“Found a project you like? Talk to its owner first —
+  apply once you've agreed to team up.”*
+- Project detail, above the Apply button: *“Discuss with the owner (contact above) before
+  applying. Your application should confirm what you've already agreed.”*
+- The apply form has a **required checkbox**: *“I have discussed this project with the owner.”*
+- The owner's accept action is labelled **Confirm member**, not "accept".
+
+Mechanics:
+
+- A student may **apply** to an open project with an optional short message, if eligible
+  (below). **At most one pending application at a time, app-wide** — to apply elsewhere,
+  withdraw the pending one first.
+- The **owner** sees applicants (linked to their profiles) on their project page and can
+  **Confirm** or **Decline** each. Confirming creates a membership; when the team is
+  complete (owner + members = group size), the project flips to **fulfilled** and any
+  remaining pending applications are auto-declined.
+- The owner can **remove** a confirmed member at any time; the project reopens if it was full.
+- **Eligibility — a student can apply only if all of these hold** (re-checked when the
+  owner confirms, since things can change while an application waits):
+  1. They don't own an open or fulfilled project. **An owner who wants to join someone
+     else's project must first cancel their own** (§3.2).
+  2. They aren't already a member of any project (one group per student).
+  3. They have no other pending application.
+  4. The target project is open and isn't their own.
 - No notification emails in v1 — students check the site. (Anymail makes adding
-  "you were accepted" emails a ~1-hour task later if wanted.)
+  "you were confirmed" emails a ~1-hour task later if wanted.)
 
 ### 3.4 Stats card & bonus score
 
 A card at the top of the project list shows:
 
-- **Total projects submitted** (count of all projects, including fulfilled; deleted ones don't count).
+- **Total projects submitted** — count of open + fulfilled projects (cancelled and
+  deleted don't count, since they no longer contribute to team supply).
 - **Current bonus score** — the extra points a student would earn by posting **and
-  fulfilling** a project right now: `score = max(3, 20 − N)` where **N = current total
-  projects**. So the 1st project shows 20 and it decays to the floor of 3 from the 18th on.
+  fulfilling** a project right now. **Non-linear (logistic S-curve)**, designed around how
+  many projects the class actually needs: 45 students in groups of 2–5 ≈ **12–14 projects**.
+  Encouragement stays near-maximal while supply is short, drops fastest right around the
+  target, and levels off at the floor:
+
+  `score = round( 3 + 17 / (1 + e^((N − 12) / 2.5)) )`  where **N** = open + fulfilled projects
+
+  | N (projects) | 0 | 4 | 8 | 10 | 12 | 14 | 16 | 18 | 22+ |
+  |---|---|---|---|---|---|---|---|---|---|
+  | **score** | 20 | 19 | 17 | 15 | 12 | 8 | 6 | 4 | 3 |
+
+  Why not linear: `20 − N` would punish the 6th poster heavily even though the class still
+  needs ~7 more projects. The S-curve rewards every early poster close to the maximum,
+  concentrates the drop where additional projects stop being needed, and never goes below 3.
+- The four constants (max 20, min 3, midpoint 12, steepness 2.5) live in settings so you
+  can tune the curve without code changes.
 - This number is **display-only / informational**: the app does not record it per project
-  or per student — you award actual points manually. The formula's constants (20, 3, decay
-  rate) live in one settings entry so you can tune them without code changes.
+  or per student — you award actual points manually.
 
 ### 3.5 Reports & peer reviews
 
-- Available to every student who is the **owner or an accepted member** of a project
-  (nav link "My report" appears once they're in a group).
+- Available to every student who is the **owner or a confirmed member** of an open or
+  fulfilled project (nav link "My report" appears once they're in a group).
 - The report form collects, about the project the student belongs to:
   1. **My contribution to the project** (text, required)
   2. **What I did well** (text, required)
@@ -151,14 +186,14 @@ User (custom, email = username)
   languages, interests, skills
 
 Project
-  owner → User            # one owner; a user may own at most one project (v1 rule)
-  title, description, keywords, members_needed (2–5), talents_needed,
-  contact_info, status (open|fulfilled), created_at, updated_at
+  owner → User            # a user may own at most one open/fulfilled project
+  title, description, keywords, group_size (2–5, total incl. owner), talents_needed,
+  contact_info, status (open|fulfilled|cancelled), created_at, updated_at
 
 Application
-  project → Project, applicant → User, message,
-  status (pending|accepted|declined|withdrawn), created_at, decided_at
-  unique(project, applicant) among non-withdrawn rows
+  project → Project, applicant → User, message, discussed_with_owner (bool),
+  status (pending|confirmed|declined|withdrawn), created_at, decided_at
+  rule: at most one *pending* application per student, app-wide
 
 Membership
   project → Project, member → User, joined_at
@@ -183,9 +218,9 @@ stay free text for v1; structured tags are unnecessary at 45 users.
 |---|---|---|
 | `/accounts/register/`, `/login/`, `/logout/`, `/verify/<token>/` | Auth flows | Anonymous |
 | `/` | Project list + stats card + search | Signed-in |
-| `/projects/new/`, `/projects/<id>/`, `/projects/<id>/edit/`, `/projects/<id>/delete/` | Project CRUD | Signed-in; edit/delete owner-only |
-| `/projects/<id>/apply/` | Apply form | Signed-in, eligible |
-| `/projects/<id>/applications/<id>/accept|decline/`, `/projects/<id>/members/<id>/remove/` | Owner actions (POST) | Owner |
+| `/projects/new/`, `/projects/<id>/`, `/projects/<id>/edit/`, `/projects/<id>/cancel/`, `/projects/<id>/delete/` | Project CRUD + cancel | Signed-in; edit/cancel/delete owner-only |
+| `/projects/<id>/apply/` | Apply form (with "discussed with owner" checkbox) | Signed-in, eligible |
+| `/projects/<id>/applications/<id>/confirm|decline/`, `/projects/<id>/members/<id>/remove/` | Owner actions (POST) | Owner |
 | `/users/<id>/` | Public profile | Signed-in |
 | `/profile/edit/` | Edit own profile | Signed-in |
 | `/report/` | My report + peer reviews | Signed-in, in a group |
@@ -198,9 +233,9 @@ stay free text for v1; structured tags are unnecessary at 45 users.
   sender from your ASP.NET app.
 - v1 sends exactly one kind of email: the **verification link**. This is genuinely easy —
   ~30 lines total.
-- **Recommended freebie:** Django's built-in *password-reset* flow needs only a template
-  and a URL include once email works (≈15 minutes). Without it, you must reset forgotten
-  passwords by hand in the admin for 45 students. Included in the plan unless you object.
+- **Password reset** (confirmed in review): Django's built-in flow, enabled since email
+  is already configured. Without it you'd be resetting forgotten passwords by hand in the
+  admin for 45 students.
 
 ## 7. Azure architecture & deployment
 
@@ -230,17 +265,24 @@ GitHub repo ──GitHub Actions──▶ App Service (Linux, Python 3.12, B1, g
 - Timezone: site-wide setting (confirm yours; assumed UTC+8 for now). English UI.
 - Backups: PostgreSQL Flexible Server automated backups (7-day default).
 
-## 9. Assumptions to confirm
+## 9. Remaining assumptions to confirm
 
-1. **"Members needed (2–5)" = teammates recruited *in addition to* the owner** (literal
-   reading), so total group size is 3–6. If you meant total group size 2–5, say so — a
-   one-line change.
-2. **One group per student**: a student can only be in one project (as owner or member).
-   Stated for owners in your requirements; extended to members since this is group formation.
-3. **One project per owner** (follows from #2).
-4. Reports remain **editable indefinitely** in v1; deadlines enforced by you, not the app.
-5. Password reset flow is **included** (see §6).
-6. Instructor tools = **Django admin + CSV export**, no custom dashboard in v1.
+Resolved in review (2026-07-02): group size = **total** members incl. owner (2–5); one
+group per student; **one pending application at a time**; an owner must **cancel** their
+project before applying elsewhere; password reset included; bonus score is display-only
+with a non-linear curve.
+
+Still open:
+
+1. Reports remain **editable indefinitely** in v1 — deadlines are enforced by you outside
+   the app. (A hard cutoff date is easy to add later if wanted.)
+2. Instructor tools = **Django admin + CSV export**, no custom dashboard in v1.
+3. **Cancel semantics:** cancelling releases all members and declines pending applications
+   — even if the project was already fulfilled (the formed team dissolves and those
+   students are free again). Cancelled projects are hidden from the list, don't count
+   toward the stats-card N, and cannot be un-cancelled in v1.
+4. **Bonus curve calibration:** S-curve midpoint at 12 projects, sized for 45 students in
+   groups of ~3–4. All four constants are settings, so tuning later needs no code change.
 
 ## 10. Build plan
 
@@ -248,7 +290,7 @@ GitHub repo ──GitHub Actions──▶ App Service (Linux, Python 3.12, B1, g
 |---|---|---|---|
 | 1 | Skeleton + accounts | Django project, custom email-login User with all profile fields, register/sign-in/sign-out, profile view/edit, Bootstrap base layout, admin | day 1 |
 | 2 | Projects | CRUD, list + search, stats card with bonus score | day 2 |
-| 3 | Groups | Apply / accept / decline / remove, eligibility rules, auto-fulfill | day 3 |
+| 3 | Groups | Apply / confirm / decline / remove, one-pending-application + eligibility rules, cancel flow, auto-fulfill | day 3 |
 | 4 | Reports | Report + per-teammate review forms, instructor admin views, CSV export | day 4 |
 | 5 | Email | Anymail + SendGrid, verification flow, password reset | day 5 |
 | 6 | Azure | Provision resources, production settings, GitHub Actions, smoke test, seed instructor account | day 6 |
