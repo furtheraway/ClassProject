@@ -30,6 +30,20 @@ def owned_active_project(user, exclude_pk=None):
     return qs.first()
 
 
+def user_current_project(user):
+    """The active project the user belongs to (as owner or member), or None.
+
+    Used by the report page and the "My report" nav link (SPEC §3.5).
+    """
+    owned = owned_active_project(user)
+    if owned:
+        return owned
+    membership = Membership.objects.select_related("project").filter(member=user).first()
+    # Memberships are deleted when a project is cancelled, so an existing
+    # membership always points at an open/fulfilled project.
+    return membership.project if membership else None
+
+
 def application_block_reason(user, project):
     """Why `user` can't apply to `project` right now — None if they can (SPEC §3.3)."""
     if project.owner_id == user.pk:

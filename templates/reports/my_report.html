@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}My report · ClassProject{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+        <h1 class="h4 mb-1">My end-of-project report</h1>
+        <p class="text-muted mb-1">
+          For “<a href="{% url 'project-detail' project.pk %}">{{ project.title }}</a>”
+        </p>
+        {% if report %}
+          <p class="small text-muted mb-3">
+            Last submitted {{ report.updated_at|date:"M j, Y H:i" }} — resubmitting replaces it.
+          </p>
+        {% else %}
+          <p class="small text-muted mb-3">Not submitted yet.</p>
+        {% endif %}
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+          {% endif %}
+
+          {% for field in form.report_fields %}
+            <div class="mb-3">
+              <label class="form-label" for="{{ field.id_for_label }}">
+                {{ field.label }}{% if field.field.required %} <span class="text-danger">*</span>{% endif %}
+              </label>
+              {{ field }}
+              {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+              {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+            </div>
+          {% endfor %}
+
+          <h2 class="h6 mt-4 mb-1">Teammate reviews</h2>
+          <div class="alert alert-info small">
+            Teammate reviews are visible <strong>only to the instructor</strong> —
+            your teammates will never see your scores or comments.
+          </div>
+
+          {% for teammate, score_field, comments_field in form.teammate_fields %}
+            <fieldset class="border rounded p-3 mb-3">
+              <legend class="h6 float-none w-auto px-2 mb-0">{{ teammate.full_name }}</legend>
+              <div class="row g-3">
+                <div class="col-sm-4">
+                  <label class="form-label" for="{{ score_field.id_for_label }}">
+                    {{ score_field.label }} <span class="text-danger">*</span>
+                  </label>
+                  {{ score_field }}
+                  {% for error in score_field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="col-sm-8">
+                  <label class="form-label" for="{{ comments_field.id_for_label }}">
+                    {{ comments_field.label }}
+                  </label>
+                  {{ comments_field }}
+                  {% for error in comments_field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                </div>
+              </div>
+            </fieldset>
+          {% empty %}
+            <p class="text-muted small">No teammates yet — reviews will appear here once your team has other members.</p>
+          {% endfor %}
+
+          <button type="submit" class="btn btn-primary w-100">
+            {% if report %}Update report{% else %}Submit report{% endif %}
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

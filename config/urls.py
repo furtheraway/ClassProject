@@ -7,4 +7,5 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("", include("accounts.urls")),
     path("", include("projects.urls")),
+    path("", include("reports.urls")),
 ]

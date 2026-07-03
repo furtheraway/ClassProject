@@ -9,11 +9,12 @@ or changing a feature, and keep SPEC.md updated when requirements change.**
 
 ## Status
 
-Milestones 1–3 complete (accounts/profiles; project board with CRUD,
+Milestones 1–4 complete (accounts/profiles; project board with CRUD,
 cancel/reactivate, search, stats card + S-curve bonus score; applications,
-memberships, eligibility guards, auto-fulfill/reopen, cancel releases team) —
-all verified end-to-end 2026-07-02. Next: Milestone 4 (end-of-project reports
-with required work URL + instructor-only peer reviews + CSV export via admin).
+memberships, eligibility guards, auto-fulfill/reopen, cancel releases team;
+end-of-project reports with per-teammate peer reviews, instructor-only admin
+views + CSV export) — all verified end-to-end 2026-07-02. Next: Milestone 5
+(Anymail/SendGrid email verification at signup + password reset).
 Build order = SPEC.md §10.
 
 ## Commands
