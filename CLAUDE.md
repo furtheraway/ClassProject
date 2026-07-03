@@ -9,12 +9,14 @@ or changing a feature, and keep SPEC.md updated when requirements change.**
 
 ## Status
 
-Milestones 1–4 complete (accounts/profiles; project board with CRUD,
+Milestones 1–5 complete (accounts/profiles; project board with CRUD,
 cancel/reactivate, search, stats card + S-curve bonus score; applications,
 memberships, eligibility guards, auto-fulfill/reopen, cancel releases team;
 end-of-project reports with per-teammate peer reviews, instructor-only admin
-views + CSV export) — all verified end-to-end 2026-07-02. Next: Milestone 5
-(Anymail/SendGrid email verification at signup + password reset).
+views + CSV export; email verification at signup — inactive account + signed
+3-day token link + resend page — and Django's built-in password reset, sent
+via Anymail/SendGrid when `SENDGRID_API_KEY` is set, console backend locally)
+— all verified end-to-end 2026-07-02. Next: Milestone 6 (Azure deployment).
 Build order = SPEC.md §10.
 
 ## Commands

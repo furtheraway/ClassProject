@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "anymail",  # SendGrid email backend (SPEC §6)
     # Project apps
     "accounts",
     "projects",
@@ -89,6 +90,13 @@ else:
 # Authentication — custom email-login user (SPEC §3.1)
 
 AUTH_USER_MODEL = "accounts.User"
+
+# The default ModelBackend makes unverified (inactive) accounts fail exactly
+# like a wrong password. This variant lets the login form see the user and
+# show "account not verified yet" instead (SPEC §3.1); the form still blocks
+# the actual sign-in.
+AUTHENTICATION_BACKENDS = ["django.contrib.auth.backends.AllowAllUsersModelBackend"]
+
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "home"
 LOGOUT_REDIRECT_URL = "login"
@@ -144,10 +152,15 @@ BONUS_SCORE = {
 }
 
 
-# Email — real SendGrid sending arrives in Milestone 5. Until then any email
-# (e.g. password reset) is printed to the runserver console instead of sent.
+# Email (SPEC §6) — SendGrid via Anymail when SENDGRID_API_KEY is set
+# (production); otherwise emails print to the runserver console (local dev).
 
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+SENDGRID_API_KEY = env("SENDGRID_API_KEY", default="")
+if SENDGRID_API_KEY:
+    EMAIL_BACKEND = "anymail.backends.sendgrid.EmailBackend"
+    ANYMAIL = {"SENDGRID_API_KEY": SENDGRID_API_KEY}
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="ClassProject <no-reply@example.com>")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

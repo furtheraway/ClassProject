@@ -1,5 +1,10 @@
 from django import forms
-from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
+from django.contrib.auth.forms import (
+    AuthenticationForm,
+    PasswordResetForm,
+    SetPasswordForm,
+    UserCreationForm,
+)
 
 from .models import User
 
@@ -65,4 +70,27 @@ class ProfileForm(BootstrapFormMixin, forms.ModelForm):
 
 
 class LoginForm(BootstrapFormMixin, AuthenticationForm):
+    # AuthenticationForm rejects inactive users; here "inactive" always means
+    # "hasn't clicked the verification link yet" (SPEC §3.1), so say that.
+    error_messages = {
+        **AuthenticationForm.error_messages,
+        "inactive": (
+            "This account hasn't been verified yet. Check your inbox for the "
+            "verification link, or request a new one below."
+        ),
+    }
+
+
+class ResendVerificationForm(BootstrapFormMixin, forms.Form):
+    email = forms.EmailField(label="Email address")
+
+
+# Password reset (SPEC §6) — Django's built-in forms, restyled for Bootstrap.
+
+
+class PasswordResetRequestForm(BootstrapFormMixin, PasswordResetForm):
+    pass
+
+
+class SetNewPasswordForm(BootstrapFormMixin, SetPasswordForm):
     pass

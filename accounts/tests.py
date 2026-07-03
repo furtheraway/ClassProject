@@ -1,6 +1,11 @@
+import time
+from unittest import mock
+
+from django.core import mail
 from django.test import TestCase
 from django.urls import reverse
 
+from .emails import make_verification_token
 from .models import User
 
 REGISTRATION_DATA = {
@@ -21,15 +26,20 @@ REGISTRATION_DATA = {
 
 
 class RegistrationTests(TestCase):
-    def test_register_creates_user_and_signs_in(self):
+    def test_register_creates_inactive_user_and_sends_verification(self):
         response = self.client.post(reverse("register"), REGISTRATION_DATA)
-        self.assertRedirects(response, reverse("home"))
+        self.assertContains(response, "Check your email")
         user = User.objects.get(email="alice@example.com")
         self.assertEqual(user.full_name, "Alice Zhang")
         self.assertEqual(user.height_cm, 213)
-        # The new user is signed in
+        # Inactive until the emailed link is clicked (SPEC §3.1)
+        self.assertFalse(user.is_active)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["alice@example.com"])
+        self.assertIn("/accounts/verify/", mail.outbox[0].body)
+        # And not signed in — home still bounces to the login page
         response = self.client.get(reverse("home"))
-        self.assertTrue(response.context["user"].is_authenticated)
+        self.assertIn(reverse("login"), response.url)
 
     def test_profile_fields_are_required(self):
         data = dict(REGISTRATION_DATA, department="")
@@ -45,6 +55,96 @@ class RegistrationTests(TestCase):
         response = self.client.post(reverse("register"), REGISTRATION_DATA)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(User.objects.filter(email="alice@example.com").count(), 1)
+
+
+class EmailVerificationTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="alice@example.com",
+            password="correct-horse-9!",
+            full_name="Alice Zhang",
+            is_active=False,
+        )
+
+    def test_valid_token_activates_account(self):
+        token = make_verification_token(self.user)
+        response = self.client.get(reverse("verify-email", args=[token]))
+        self.assertRedirects(response, reverse("login"))
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.is_active)
+
+    def test_tampered_token_rejected(self):
+        token = make_verification_token(self.user) + "x"
+        response = self.client.get(reverse("verify-email", args=[token]))
+        self.assertRedirects(response, reverse("resend-verification"))
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.is_active)
+
+    def test_expired_token_rejected(self):
+        # Sign with a timestamp 4 days in the past (max age is 3 days)
+        four_days_ago = time.time() - 60 * 60 * 24 * 4
+        with mock.patch("django.core.signing.time.time", return_value=four_days_ago):
+            token = make_verification_token(self.user)
+        self.client.get(reverse("verify-email", args=[token]))
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.is_active)
+
+    def test_unverified_user_cannot_sign_in(self):
+        response = self.client.post(
+            reverse("login"),
+            {"username": "alice@example.com", "password": "correct-horse-9!"},
+        )
+        self.assertEqual(response.status_code, 200)  # form re-rendered
+        # (apostrophe in "hasn't" is HTML-escaped, so match around it)
+        self.assertContains(response, "been verified yet")
+
+    def test_resend_sends_new_link_for_unverified_account(self):
+        response = self.client.post(
+            reverse("resend-verification"), {"email": "alice@example.com"}
+        )
+        self.assertRedirects(response, reverse("login"))
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("/accounts/verify/", mail.outbox[0].body)
+
+    def test_resend_is_silent_for_unknown_or_verified_accounts(self):
+        self.user.is_active = True
+        self.user.save()
+        for email in ("alice@example.com", "nobody@example.com"):
+            response = self.client.post(reverse("resend-verification"), {"email": email})
+            self.assertRedirects(response, reverse("login"))
+        self.assertEqual(len(mail.outbox), 0)
+
+
+class PasswordResetTests(TestCase):
+    def test_reset_email_link_allows_setting_new_password(self):
+        User.objects.create_user(
+            email="bob@example.com", password="old-pass-9!", full_name="Bob Li"
+        )
+        response = self.client.post(
+            reverse("password_reset"), {"email": "bob@example.com"}
+        )
+        self.assertRedirects(response, reverse("password_reset_done"))
+        self.assertEqual(len(mail.outbox), 1)
+        # Pull the confirm URL out of the email body
+        reset_url = next(
+            line for line in mail.outbox[0].body.splitlines() if "/password-reset/" in line
+        ).strip()
+        # Django redirects the tokened URL to a session-backed one first
+        response = self.client.get(reset_url, follow=True)
+        self.assertContains(response, "Choose a new password")
+        form_url = response.redirect_chain[-1][0]
+        response = self.client.post(
+            form_url,
+            {"new_password1": "brand-new-pass-9!", "new_password2": "brand-new-pass-9!"},
+            follow=True,
+        )
+        self.assertContains(response, "Password changed")
+        # The new password works
+        response = self.client.post(
+            reverse("login"),
+            {"username": "bob@example.com", "password": "brand-new-pass-9!"},
+        )
+        self.assertRedirects(response, reverse("home"))
 
 
 class LoginTests(TestCase):

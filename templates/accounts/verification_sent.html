@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Check your email · ClassProject{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6 col-lg-5">
+    <div class="card shadow-sm">
+      <div class="card-body p-4 text-center">
+        <h1 class="h4 mb-3">Check your email</h1>
+        <p>We sent a verification link to <strong>{{ email }}</strong>.</p>
+        <p class="text-muted small mb-4">
+          Click the link within 3 days to activate your account. If it doesn't
+          arrive, check your spam folder or
+          <a href="{% url 'resend-verification' %}">request a new link</a>.
+        </p>
+        <a href="{% url 'login' %}" class="btn btn-outline-primary">Go to sign in</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,12 @@
+Hi {{ user.full_name }},
+
+Welcome to ClassProject! Please confirm your email address by opening this
+link (valid for 3 days):
+
+{{ verify_url }}
+
+Once verified you can sign in and browse the project board.
+
+If you didn't create this account, you can ignore this email.
+
+— ClassProject
