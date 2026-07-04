@@ -23,6 +23,19 @@ DEBUG = env("DEBUG")
 
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 
+# Production hardening (SPEC §7) — active whenever DEBUG is off.
+if not DEBUG:
+    # App Service's front end terminates HTTPS and forwards plain HTTP to
+    # gunicorn with this header — Django's equivalent of ASP.NET Core's
+    # ForwardedHeaders middleware. Without it, is_secure() is always False
+    # and the redirect below would loop forever.
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_SSL_REDIRECT = True          # http:// → https://
+    SESSION_COOKIE_SECURE = True        # cookies only over HTTPS
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 60 * 60 * 24 * 30  # 30 days; raise once stable
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+
 
 # Application definition
 
