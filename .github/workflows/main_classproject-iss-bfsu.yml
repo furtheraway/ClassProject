@@ -30,6 +30,11 @@ jobs:
 
     - name: Run test suite (SQLite, same as local dev)
       run: python manage.py test
+      # No .env on the runner, so DEBUG would default to False and the
+      # production SECURE_SSL_REDIRECT would 301 every http:// request the
+      # Django test client makes. Match local dev instead.
+      env:
+        DEBUG: "True"
 
   deploy:
     runs-on: ubuntu-latest
