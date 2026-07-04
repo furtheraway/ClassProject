@@ -1,7 +1,12 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
+# Deploys to Azure App Service on every push to main (SPEC §7).
+#
+# The Azure-generated original used azure/appservice-build@v2, whose build
+# image predates Python 3.13 and fails. Instead we push the raw source and
+# let App Service build it on arrival: the SCM_DO_BUILD_DURING_DEPLOYMENT
+# app setting makes Kudu/Oryx run `pip install -r requirements.txt` server
+# side with the app's own Python 3.13 runtime.
 
-name: 'Build and deploy Python app to Azure Web App: classproject-ISS-BFSU'
+name: 'Test and deploy to Azure Web App: classproject-ISS-BFSU'
 
 on:
   push:
@@ -10,26 +15,31 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-deploy:
+  test:
     runs-on: ubuntu-latest
-    
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
-    - name: Set up Python version
-      uses: actions/setup-python@v1
+    - name: Set up Python
+      uses: actions/setup-python@v5
       with:
         python-version: '3.13'
-    
-    - name: Build using AppService-Build
-      uses: azure/appservice-build@v2
-      with:
-        platform: python
-        platform-version: '3.13'
-    
+
+    - name: Install dependencies
+      run: pip install -r requirements.txt
+
+    - name: Run test suite (SQLite, same as local dev)
+      run: python manage.py test
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+    - uses: actions/checkout@v4
+
     - name: 'Deploy to Azure Web App'
-      uses: azure/webapps-deploy@v2
-      with: 
+      uses: azure/webapps-deploy@v3
+      with:
         app-name: 'classproject-ISS-BFSU'
         slot-name: 'production'
         publish-profile: ${{ secrets.AzureAppService_PublishProfile_8edcba9eb356464ba4b063ba7817651f }}
