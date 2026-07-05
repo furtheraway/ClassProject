@@ -1,0 +1,4 @@
+# Shell scripts run on Linux (App Service) — must keep LF line endings even
+# when checked out or archived on Windows, or bash sees a stray \r on every
+# line ("No module named 'config.wsgi\r'").
+*.sh text eol=lf
