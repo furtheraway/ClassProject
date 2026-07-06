@@ -176,14 +176,9 @@ else:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="ClassProject <no-reply@example.com>")
 
-# Notifications (SPEC §6). ADMINS feeds Django's mail_admins() — the instructor
-# address that hears about new users, new projects and fulfilled projects.
-# Leave ADMIN_EMAIL unset to turn admin notifications off (mail_admins is a
-# no-op with an empty ADMINS list).
-ADMIN_EMAIL = env("ADMIN_EMAIL", default="")
-ADMINS = [("Site admin", ADMIN_EMAIL)] if ADMIN_EMAIL else []
-SERVER_EMAIL = DEFAULT_FROM_EMAIL  # mail_admins' From: — must be a verified SendGrid sender
-EMAIL_SUBJECT_PREFIX = "[ClassProject] "
+# Notifications (SPEC §6): instructor notifications go to every active
+# is_staff account (accounts.emails.notify_staff) — recipients live in the
+# database, so there is no admin-email setting here.
 
 # Absolute base URL for links inside notification emails, which are sent from
 # the service layer where no HttpRequest is available to build one from.

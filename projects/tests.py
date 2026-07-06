@@ -1,6 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.core import mail
-from django.test import TestCase, override_settings
+from django.test import TestCase
 from django.urls import reverse
 
 from .models import Application, Membership, Project
@@ -18,8 +18,10 @@ PROJECT_DATA = {
 }
 
 
-def make_user(email, name="Some Student"):
-    return User.objects.create_user(email=email, password="correct-horse-9!", full_name=name)
+def make_user(email, name="Some Student", **extra):
+    return User.objects.create_user(
+        email=email, password="correct-horse-9!", full_name=name, **extra
+    )
 
 
 class BonusScoreTests(TestCase):
@@ -448,7 +450,6 @@ class GroupSizeEditTests(TestCase):
         self.assertEqual(self.project.status, Project.Status.OPEN)
 
 
-@override_settings(ADMINS=[("Instructor", "instructor@example.com")])
 class NotificationEmailTests(TestCase):
     """Notification emails for board events (SPEC §3.3, §6).
 
@@ -462,6 +463,8 @@ class NotificationEmailTests(TestCase):
         self.dave = make_user("dave@example.com", "Dave Deng")
         self.erin = make_user("erin@example.com", "Erin Xu")
         self.frank = make_user("frank@example.com", "Frank Ma")
+        # Staff account = notification recipient (is_staff drives the list).
+        self.instructor = make_user("instructor@example.com", "Ina Instructor", is_staff=True)
 
     def _project(self, **overrides):
         return Project.objects.create(owner=self.owner, **dict(PROJECT_DATA, **overrides))
@@ -540,8 +543,8 @@ class NotificationEmailTests(TestCase):
         (erin_msg,) = self._outbox_for(self.erin.email)
         self.assertIn("cancelled", erin_msg.body)
 
-    @override_settings(ADMINS=[])
-    def test_no_admin_configured_sends_nothing_to_admin(self):
+    def test_no_staff_accounts_sends_nothing_to_admin(self):
+        self.instructor.delete()
         self.client.force_login(self.owner)
         self.client.post(reverse("project-new"), PROJECT_DATA)
         self.assertEqual(mail.outbox, [])

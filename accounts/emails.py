@@ -1,4 +1,4 @@
-"""Email-verification helpers (SPEC §3.1, §6).
+"""Email-verification helpers and instructor notifications (SPEC §3.1, §6).
 
 Django's `signing` module is the analogue of ASP.NET Core's Data Protection
 (`ITimeLimitedDataProtector`): it HMAC-signs a payload with SECRET_KEY and a
@@ -6,9 +6,13 @@ timestamp, so the token needs no database table and expires on its own.
 """
 
 from django.core import signing
-from django.core.mail import mail_admins, send_mail
+from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.urls import reverse
+
+from .models import User
+
+SUBJECT_TAG = "[SUM 26001 Class Project]"
 
 VERIFICATION_SALT = "accounts.email-verification"
 VERIFICATION_MAX_AGE = 60 * 60 * 24 * 3  # 3 days (SPEC §3.1)
@@ -38,17 +42,27 @@ def send_verification_email(request, user):
     send_mail("Verify your SUM 26001 Class Project account", body, None, [user.email])
 
 
-def notify_admin_new_user(user):
-    """Tell the instructor a student registered (SPEC §6).
+def notify_staff(subject, body):
+    """Email the instructor: every active staff account (SPEC §6).
 
-    mail_admins() sends to settings.ADMINS (the ADMIN_EMAIL app setting) and is
-    a no-op when that list is empty. fail_silently so an email hiccup never
-    breaks registration — the student's own verification email above matters
-    more and is sent first.
+    Recipients come from the database instead of an ADMIN_EMAIL setting —
+    seeding the instructor with `createsuperuser` is all the setup there is,
+    and no staff accounts (a fresh database) simply means no email.
+    fail_silently: an email hiccup must never break the student action that
+    triggered the notification.
     """
-    mail_admins(
+    recipients = list(
+        User.objects.filter(is_staff=True, is_active=True).values_list("email", flat=True)
+    )
+    if not recipients:
+        return
+    send_mail(f"{SUBJECT_TAG} {subject}", body, None, recipients, fail_silently=True)
+
+
+def notify_admin_new_user(user):
+    """Tell the instructor a student registered (SPEC §6)."""
+    notify_staff(
         f"New user registered: {user.full_name}",
         f"{user.full_name} <{user.email}> just registered "
         "(account inactive until they verify their email).\n",
-        fail_silently=True,
     )

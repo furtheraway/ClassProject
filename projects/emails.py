@@ -5,17 +5,17 @@ a successful action (apply, confirm, cancel…) into a 500 for the student. The
 verification email in accounts/emails.py stays strict because sign-up can't
 proceed without it.
 
-Admin notifications go through Django's mail_admins(), which sends to the
-ADMINS list in settings (driven by the ADMIN_EMAIL env var) and is a no-op
-when that list is empty.
+Admin notifications go to every active staff account (the instructor) via
+accounts.emails.notify_staff() — recipients live in the database, so there is
+no admin-address setting to configure or forget.
 """
 
 from django.conf import settings
-from django.core.mail import mail_admins, send_mail
+from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.urls import reverse
 
-SUBJECT_TAG = "[SUM 26001 Class Project]"
+from accounts.emails import SUBJECT_TAG, notify_staff
 
 
 def project_url(project):
@@ -39,22 +39,20 @@ def _send(subject, template, context, recipients):
 # Admin notifications (instructor)
 
 def notify_admin_project_created(project):
-    mail_admins(
+    notify_staff(
         f"New project posted: {project.title}",
         f"{project.owner.full_name} <{project.owner.email}> posted a new project:\n\n"
         f"  {project.title} (group size {project.group_size})\n\n"
         f"{project_url(project)}\n",
-        fail_silently=True,
     )
 
 
 def notify_admin_project_fulfilled(project):
-    mail_admins(
+    notify_staff(
         f"Project fulfilled: {project.title}",
         f"“{project.title}” (owner {project.owner.full_name}) reached its group "
         f"size of {project.group_size} and is now fulfilled.\n\n"
         f"{project_url(project)}\n",
-        fail_silently=True,
     )
 
 

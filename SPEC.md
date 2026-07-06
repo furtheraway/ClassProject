@@ -258,8 +258,10 @@ stay free text for v1; structured tags are unnecessary at 45 users.
   - **Student notifications (§3.3):** owner ← new application; applicant ← application
     confirmed / declined (incl. auto-declines on fulfillment or cancellation); team
     members (owner excluded — they took the action) ← project fulfilled / cancelled.
-  - **Admin notifications** via Django's `mail_admins()` to the `ADMIN_EMAIL` app
-    setting (unset = off): new user registered, project posted, project fulfilled.
+  - **Admin notifications** to every active staff account (the instructor —
+    `accounts.emails.notify_staff()`): new user registered, project posted, project
+    fulfilled. Recipients come from the database (`is_staff`), so there is no
+    admin-email setting; seeding the instructor via `createsuperuser` turns them on.
 - Links inside notification emails are built from the `SITE_URL` setting (the service
   layer has no request to derive the host from).
 
