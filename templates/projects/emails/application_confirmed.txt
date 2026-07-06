@@ -1,0 +1,8 @@
+Hi {{ application.applicant.full_name }},
+
+Good news — {{ project.owner.full_name }} confirmed your application, and you
+are now a member of “{{ project.title }}”.
+
+{{ project_url }}
+
+— SUM 26001 Class Project

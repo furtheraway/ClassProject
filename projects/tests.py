@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.core import mail
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from .models import Application, Membership, Project
@@ -445,3 +446,102 @@ class GroupSizeEditTests(TestCase):
         self._edit(4)
         self.project.refresh_from_db()
         self.assertEqual(self.project.status, Project.Status.OPEN)
+
+
+@override_settings(ADMINS=[("Instructor", "instructor@example.com")])
+class NotificationEmailTests(TestCase):
+    """Notification emails for board events (SPEC §3.3, §6).
+
+    on_commit callbacks never fire inside TestCase's wrapping transaction, so
+    the flows that defer email until commit (confirm / fulfill / cancel) run
+    inside captureOnCommitCallbacks(execute=True).
+    """
+
+    def setUp(self):
+        self.owner = make_user("owner@example.com", "Olive Owner")
+        self.dave = make_user("dave@example.com", "Dave Deng")
+        self.erin = make_user("erin@example.com", "Erin Xu")
+        self.frank = make_user("frank@example.com", "Frank Ma")
+
+    def _project(self, **overrides):
+        return Project.objects.create(owner=self.owner, **dict(PROJECT_DATA, **overrides))
+
+    def _pending_app(self, project, user):
+        return Application.objects.create(
+            project=project, applicant=user, discussed_with_owner=True
+        )
+
+    def _outbox_for(self, address):
+        return [m for m in mail.outbox if address in m.to]
+
+    def test_project_create_notifies_admin(self):
+        self.client.force_login(self.owner)
+        self.client.post(reverse("project-new"), PROJECT_DATA)
+        (message,) = self._outbox_for("instructor@example.com")
+        self.assertIn("New project posted", message.subject)
+        self.assertIn(PROJECT_DATA["title"], message.body)
+
+    def test_apply_notifies_project_owner(self):
+        project = self._project()
+        self.client.force_login(self.dave)
+        apply(self.client, project)
+        (message,) = self._outbox_for(self.owner.email)
+        self.assertIn("New application", message.subject)
+        self.assertIn(self.dave.full_name, message.body)
+
+    def test_confirm_notifies_applicant(self):
+        project = self._project()
+        app = self._pending_app(project, self.dave)
+        self.client.force_login(self.owner)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(reverse("application-confirm", args=[project.pk, app.pk]))
+        (message,) = self._outbox_for(self.dave.email)
+        self.assertIn("You joined", message.subject)
+
+    def test_decline_notifies_applicant(self):
+        project = self._project()
+        app = self._pending_app(project, self.dave)
+        self.client.force_login(self.owner)
+        self.client.post(reverse("application-decline", args=[project.pk, app.pk]))
+        (message,) = self._outbox_for(self.dave.email)
+        self.assertIn("not accepted", message.body)
+        self.assertIn("owner declined", message.body)
+
+    def test_fulfillment_notifies_team_admin_and_declined_applicants(self):
+        project = self._project()  # group size 3
+        Membership.objects.create(project=project, member=self.frank)  # 2/3
+        app_dave = self._pending_app(project, self.dave)
+        self._pending_app(project, self.erin)
+        self.client.force_login(self.owner)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(reverse("application-confirm", args=[project.pk, app_dave.pk]))
+        # Dave: joined + team-complete; Frank: team-complete only.
+        subjects = [m.subject for m in self._outbox_for(self.dave.email)]
+        self.assertEqual(len(subjects), 2, subjects)
+        self.assertTrue(any("is complete" in s for s in subjects), subjects)
+        (frank_msg,) = self._outbox_for(self.frank.email)
+        self.assertIn("is complete", frank_msg.subject)
+        # Erin's pending application was auto-declined by the fulfillment.
+        (erin_msg,) = self._outbox_for(self.erin.email)
+        self.assertIn("filled up", erin_msg.body)
+        # The instructor hears the project is fulfilled.
+        (admin_msg,) = self._outbox_for("instructor@example.com")
+        self.assertIn("fulfilled", admin_msg.subject)
+
+    def test_cancel_notifies_members_and_pending_applicants(self):
+        project = self._project()
+        Membership.objects.create(project=project, member=self.frank)
+        self._pending_app(project, self.erin)
+        self.client.force_login(self.owner)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(reverse("project-cancel", args=[project.pk]))
+        (frank_msg,) = self._outbox_for(self.frank.email)
+        self.assertIn("cancelled", frank_msg.subject)
+        (erin_msg,) = self._outbox_for(self.erin.email)
+        self.assertIn("cancelled", erin_msg.body)
+
+    @override_settings(ADMINS=[])
+    def test_no_admin_configured_sends_nothing_to_admin(self):
+        self.client.force_login(self.owner)
+        self.client.post(reverse("project-new"), PROJECT_DATA)
+        self.assertEqual(mail.outbox, [])

@@ -2,7 +2,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 
-from .emails import read_verification_token, send_verification_email
+from .emails import notify_admin_new_user, read_verification_token, send_verification_email
 from .forms import ProfileForm, RegistrationForm, ResendVerificationForm
 from .models import User
 
@@ -19,6 +19,7 @@ def register(request):
             user.is_active = False  # activated by the emailed link (SPEC §3.1)
             user.save()
             send_verification_email(request, user)
+            notify_admin_new_user(user)
             return render(request, "accounts/verification_sent.html", {"email": user.email})
     else:
         form = RegistrationForm()

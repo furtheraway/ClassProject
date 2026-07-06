@@ -19,6 +19,12 @@ via Anymail/SendGrid when `SENDGRID_API_KEY` is set, console backend locally)
 — all verified end-to-end 2026-07-02. Next: Milestone 6 (Azure deployment).
 Build order = SPEC.md §10.
 
+Added 2026-07-06: notification emails (SPEC §6) — admin (`ADMIN_EMAIL` setting) hears
+about new users / new projects / fulfillments; owners about new applications; applicants
+about confirm/decline (incl. auto-declines); team members about fulfill/cancel. Logic in
+`projects/emails.py` + `accounts/emails.py`, wired through `projects/services.py` with
+`transaction.on_commit`; email links built from the `SITE_URL` setting.
+
 ## Commands
 
 Python 3.13 venv at `.venv` (Python 3.14 is also on the machine — always use the venv):

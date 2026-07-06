@@ -1,0 +1,14 @@
+Hi {{ project.owner.full_name }},
+
+{{ application.applicant.full_name }} just applied to join your project
+“{{ project.title }}”.
+{% if application.message %}
+Their message:
+
+{{ application.message }}
+{% endif %}
+Review the application here:
+
+{{ project_url }}
+
+— SUM 26001 Class Project

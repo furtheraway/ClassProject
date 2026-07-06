@@ -7,7 +7,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from . import services
+from . import emails, services
 from .forms import ApplicationForm, ProjectForm
 from .models import Application, Membership, Project
 
@@ -92,6 +92,7 @@ def project_create(request):
             project = form.save(commit=False)
             project.owner = request.user
             project.save()
+            emails.notify_admin_project_created(project)
             messages.success(request, "Your project is posted!")
             return redirect("project-detail", pk=project.pk)
     else:
@@ -183,6 +184,7 @@ def project_apply(request, pk):
             except IntegrityError:
                 messages.error(request, "You already have a pending application.")
                 return redirect("project-detail", pk=pk)
+            emails.notify_owner_new_application(application)
             messages.success(request, "Application sent — the owner will confirm or decline it.")
             return redirect("project-detail", pk=pk)
     else:
@@ -236,6 +238,9 @@ def application_decline(request, pk, app_pk):
     application.status = Application.Status.DECLINED
     application.decided_at = timezone.now()
     application.save()
+    emails.notify_applications_declined(
+        project, [application.applicant], "the owner declined it."
+    )
     messages.info(request, "Application declined.")
     return redirect("project-detail", pk=pk)
 

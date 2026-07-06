@@ -136,10 +136,12 @@ Mechanics:
   2. They aren't already a member of any project (one group per student).
   3. They have no other pending application.
   4. The target project is open and isn't their own.
-- No notification emails in v1 — students check the site for their application status.
-  (This is deferred by choice, not difficulty: the SendGrid email plumbing built in §6 for
-  verification links can send any email, so adding e.g. a "your application was confirmed"
-  notification later is roughly an hour of work.)
+- **Notification emails** keep everyone in the loop (full list in §6): the owner is
+  emailed when someone applies; the applicant is emailed when their application is
+  confirmed or declined (including auto-declines when the team fills up or the project
+  is cancelled); team members are emailed when their project is fulfilled or cancelled.
+  Notifications are best-effort (`fail_silently`) — an email outage never blocks the
+  action itself, and the site remains the source of truth.
 
 ### 3.4 Stats card & bonus score
 
@@ -247,11 +249,19 @@ stay free text for v1; structured tags are unnecessary at 45 users.
 - **django-anymail** with the SendGrid backend; the `SENDGRID_API_KEY` goes in an App
   Service application setting (never in code/git). Sender identity: reuse the verified
   sender from your ASP.NET app.
-- v1 sends exactly one kind of email: the **verification link**. This is genuinely easy —
-  ~30 lines total.
-- **Password reset** (confirmed in review): Django's built-in flow, enabled since email
-  is already configured. Without it you'd be resetting forgotten passwords by hand in the
-  admin for 45 students.
+- Emails sent by the app:
+  - **Verification link** at registration (§3.1) — required for sign-in, so it is *not*
+    fail-silent; everything below is best-effort (`fail_silently=True`).
+  - **Password reset** (confirmed in review): Django's built-in flow, enabled since email
+    is already configured. Without it you'd be resetting forgotten passwords by hand in
+    the admin for 45 students.
+  - **Student notifications (§3.3):** owner ← new application; applicant ← application
+    confirmed / declined (incl. auto-declines on fulfillment or cancellation); team
+    members (owner excluded — they took the action) ← project fulfilled / cancelled.
+  - **Admin notifications** via Django's `mail_admins()` to the `ADMIN_EMAIL` app
+    setting (unset = off): new user registered, project posted, project fulfilled.
+- Links inside notification emails are built from the `SITE_URL` setting (the service
+  layer has no request to derive the host from).
 
 ## 7. Azure architecture & deployment
 

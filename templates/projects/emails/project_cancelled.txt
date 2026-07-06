@@ -1,0 +1,9 @@
+Hi,
+
+The project “{{ project.title }}” was cancelled by its owner,
+{{ project.owner.full_name }}. You have been released from the team and can
+now apply to other projects or post your own.
+
+{{ project_url }}
+
+— SUM 26001 Class Project

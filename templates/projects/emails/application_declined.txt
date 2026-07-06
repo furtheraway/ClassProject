@@ -1,0 +1,9 @@
+Hi {{ applicant.full_name }},
+
+Your application to “{{ project.title }}” was not accepted: {{ reason }}
+
+You are free to apply to other projects on the board:
+
+{{ board_url }}
+
+— SUM 26001 Class Project

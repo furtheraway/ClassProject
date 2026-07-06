@@ -1,0 +1,8 @@
+Hi,
+
+Your team for “{{ project.title }}” is complete — the project has reached its
+group size of {{ project.group_size }} and is now marked fulfilled.
+
+{{ project_url }}
+
+— SUM 26001 Class Project

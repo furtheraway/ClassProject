@@ -6,6 +6,7 @@ from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
+from . import emails
 from .models import Application, Membership, Project
 
 
@@ -67,10 +68,32 @@ def sync_fulfillment(project):
     if project.status == Project.Status.OPEN and project.members_joined >= project.group_size:
         project.status = Project.Status.FULFILLED
         project.save()
+        # Snapshot recipients before mutating: the declined applicants and the
+        # team (minus the owner, who triggered this by confirming or editing).
+        declined_applicants = [
+            a.applicant
+            for a in project.applications.filter(
+                status=Application.Status.PENDING
+            ).select_related("applicant")
+        ]
+        member_emails = list(project.memberships.values_list("member__email", flat=True))
         # Team complete: remaining pending applications are auto-declined (SPEC §3.3).
         project.applications.filter(status=Application.Status.PENDING).update(
             status=Application.Status.DECLINED, decided_at=timezone.now()
         )
+
+        # on_commit defers the emails until the surrounding transaction commits
+        # (like queueing work after a successful SaveChanges) — if the confirm
+        # rolls back, nobody gets a wrong email. Outside a transaction it runs
+        # immediately.
+        def send_fulfillment_emails():
+            emails.notify_team_fulfilled(project, member_emails)
+            emails.notify_admin_project_fulfilled(project)
+            emails.notify_applications_declined(
+                project, declined_applicants, "the team filled up before your turn came."
+            )
+
+        transaction.on_commit(send_fulfillment_emails)
         return "fulfilled"
     if project.status == Project.Status.FULFILLED and project.members_joined < project.group_size:
         project.status = Project.Status.OPEN
@@ -99,6 +122,7 @@ def confirm_application(application):
             application.status = Application.Status.CONFIRMED
             application.decided_at = timezone.now()
             application.save()
+            transaction.on_commit(lambda: emails.notify_application_confirmed(application))
             sync_fulfillment(project)
     except IntegrityError:
         return f"{applicant.full_name} just joined another group."
@@ -119,12 +143,28 @@ def remove_member(membership):
 def cancel_project(project):
     """Cancel: release all members, decline pending applications (SPEC §3.2)."""
     with transaction.atomic():
+        # Snapshot recipients before the deletes below wipe them out.
+        member_emails = list(project.memberships.values_list("member__email", flat=True))
+        pending_applicants = [
+            a.applicant
+            for a in project.applications.filter(
+                status=Application.Status.PENDING
+            ).select_related("applicant")
+        ]
         project.status = Project.Status.CANCELLED
         project.save()
         project.memberships.all().delete()
         project.applications.filter(status=Application.Status.PENDING).update(
             status=Application.Status.DECLINED, decided_at=timezone.now()
         )
+
+        def send_cancellation_emails():
+            emails.notify_team_cancelled(project, member_emails)
+            emails.notify_applications_declined(
+                project, pending_applicants, "the project was cancelled by its owner."
+            )
+
+        transaction.on_commit(send_cancellation_emails)
 
 
 def uncancel_block_reason(project):

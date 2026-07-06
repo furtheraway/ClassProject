@@ -6,7 +6,7 @@ timestamp, so the token needs no database table and expires on its own.
 """
 
 from django.core import signing
-from django.core.mail import send_mail
+from django.core.mail import mail_admins, send_mail
 from django.template.loader import render_to_string
 from django.urls import reverse
 
@@ -36,3 +36,19 @@ def send_verification_email(request, user):
     )
     # from_email=None uses DEFAULT_FROM_EMAIL from settings.
     send_mail("Verify your SUM 26001 Class Project account", body, None, [user.email])
+
+
+def notify_admin_new_user(user):
+    """Tell the instructor a student registered (SPEC §6).
+
+    mail_admins() sends to settings.ADMINS (the ADMIN_EMAIL app setting) and is
+    a no-op when that list is empty. fail_silently so an email hiccup never
+    breaks registration — the student's own verification email above matters
+    more and is sent first.
+    """
+    mail_admins(
+        f"New user registered: {user.full_name}",
+        f"{user.full_name} <{user.email}> just registered "
+        "(account inactive until they verify their email).\n",
+        fail_silently=True,
+    )

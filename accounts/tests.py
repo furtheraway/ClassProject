@@ -2,7 +2,7 @@ import time
 from unittest import mock
 
 from django.core import mail
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from .emails import make_verification_token
@@ -40,6 +40,14 @@ class RegistrationTests(TestCase):
         # And not signed in — home still bounces to the login page
         response = self.client.get(reverse("home"))
         self.assertIn(reverse("login"), response.url)
+
+    @override_settings(ADMINS=[("Instructor", "instructor@example.com")])
+    def test_register_notifies_admin(self):
+        self.client.post(reverse("register"), REGISTRATION_DATA)
+        admin_mail = [m for m in mail.outbox if m.to == ["instructor@example.com"]]
+        self.assertEqual(len(admin_mail), 1)
+        self.assertIn("New user registered", admin_mail[0].subject)
+        self.assertIn("alice@example.com", admin_mail[0].body)
 
     def test_profile_fields_are_required(self):
         data = dict(REGISTRATION_DATA, department="")
