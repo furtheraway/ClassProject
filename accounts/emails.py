@@ -35,4 +35,4 @@ def send_verification_email(request, user):
         {"user": user, "verify_url": verify_url},
     )
     # from_email=None uses DEFAULT_FROM_EMAIL from settings.
-    send_mail("Verify your ClassProject account", body, None, [user.email])
+    send_mail("Verify your SUM 26001 Class Project account", body, None, [user.email])
